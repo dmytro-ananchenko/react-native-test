@@ -1,9 +1,10 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TextInput, Button, KeyboardAvoidingView, Image, TouchableOpacity, Text, PermissionsAndroid, Platform } from "react-native";
-import { NavigationProp, RouteProp } from "@react-navigation/native";
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { View, StyleSheet, TextInput, KeyboardAvoidingView, Image, TouchableOpacity, Text, PermissionsAndroid, Platform } from "react-native";
+import { Timestamp } from "firebase/firestore";
 import { launchCamera, launchImageLibrary } from "react-native-image-picker";
 import { CoordinatesInterface, NoteInterface } from "../interfaces/NoteInterface";
-import { addNote, updateNote } from "../api/Note";
+import { addNote, updateNote, deleteNote } from "../api/Note";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 const defaultNote: Partial<NoteInterface> = {
@@ -14,6 +15,7 @@ const defaultNote: Partial<NoteInterface> = {
         longitude: 0,
     },
     imageUrl: '',
+    date: Timestamp.fromDate(new Date()),
 };
 
 type RootStackParamList = {
@@ -25,6 +27,7 @@ type Props = NativeStackScreenProps<RootStackParamList, any>;
 
 const Note: React.FC<Props> = ({ navigation, route }) => {
     const [note, setNote] = useState<Partial<NoteInterface>>(route.params?.noteProp ?? defaultNote);
+    const [showDatePicker, setShowDatePicker] = useState(false);
 
     const validateNote = (note: Partial<NoteInterface>): boolean => {
         if (!note.title || note.title.trim() === '') {
@@ -35,19 +38,35 @@ const Note: React.FC<Props> = ({ navigation, route }) => {
             alert('Validation Error: Content is required.');
             return false;
         }
-        if (!note.coordinates || note.coordinates.latitude === 0 || note.coordinates.longitude === 0) {
-            alert('Validation Error: Valid coordinates are required.');
+        if (!note.coordinates || note.coordinates.latitude < -90 || note.coordinates.latitude > 90) {
+            alert('Validation Error: Invalid latitude value.');
+            return false;
+        }
+        if (!note.coordinates || note.coordinates.longitude < -180 || note.coordinates.longitude > 180) {
+            alert('Validation Error: Invalid longitude value.');
             return false;
         }
         return true;
     };
 
     const saveNote = async () => {
+
+        setNote({
+            ...note,
+            coordinates: {
+                latitude: parseFloat(note.coordinates?.latitude?.toString() || '0'),
+                longitude: parseFloat(note.coordinates?.longitude?.toString() || '0'),
+            }
+        });
+
         if (!validateNote(note)) {
             return;
         }
         try {
-            const noteToSave: NoteInterface = note as NoteInterface;
+            const noteToSave: NoteInterface = {
+                ...note,
+                date: note.date instanceof Timestamp ? note.date : Timestamp.fromDate(new Date(note.date || new Date())),
+            } as NoteInterface;
             if (note.id) {
                 await updateNote(note.id, noteToSave);
             } else {
@@ -60,7 +79,20 @@ const Note: React.FC<Props> = ({ navigation, route }) => {
         }
     };
 
-    const handleChange = (name: keyof NoteInterface, value: string | undefined | CoordinatesInterface) => {
+    const removeNote = async () => {
+        if (!note.id) {
+            return;
+        }
+        try {
+            await deleteNote(note.id);
+            alert('Note deleted successfully');
+            navigation.navigate('Home');
+        } catch (error) {
+            console.log({error});
+        }
+    };
+
+    const handleChange = (name: keyof NoteInterface, value: string | undefined | CoordinatesInterface | Date) => {
         setNote({
             ...note,
             [name]: value,
@@ -102,8 +134,7 @@ const Note: React.FC<Props> = ({ navigation, route }) => {
 
     const handleImagePick = () => {
         try {       
-            requestPermissions(); 
-            console.log('image pick');
+            requestPermissions();
             launchImageLibrary({ mediaType: 'photo' }, (response) => {
                 if (response.didCancel) {
                     console.log('User cancelled image picker');
@@ -134,9 +165,27 @@ const Note: React.FC<Props> = ({ navigation, route }) => {
         });
     };
 
+    const handleDateChange = (event: any, selectedDate?: Date) => {
+        const currentDate = selectedDate || (note.date instanceof Timestamp ? note.date.toDate() : new Date(note.date || new Date()));
+        setShowDatePicker(false);
+        handleChange('date', currentDate);
+    };
+
     return (
         <View style={styles.container}>
             <KeyboardAvoidingView behavior="padding">
+                <TouchableOpacity style={[styles.button, styles.buttonRow]} onPress={() => setShowDatePicker(true)}>
+                    <Text style={styles.buttonText}>Select Date</Text>
+                    <Text style={styles.buttonText}>{(note.date instanceof Timestamp ? note.date.toDate() : new Date(note.date || new Date())).toDateString()}</Text>
+                </TouchableOpacity>
+                {showDatePicker && (
+                    <DateTimePicker
+                        value={new Date(note.date instanceof Timestamp ? note.date.toDate() : note.date || new Date())}
+                        mode="date"
+                        display="default"
+                        onChange={handleDateChange}
+                    />
+                )}
                 <TextInput
                     style={styles.input}
                     value={note.title}
@@ -156,7 +205,7 @@ const Note: React.FC<Props> = ({ navigation, route }) => {
                     value={note.coordinates?.latitude?.toString() || ''}
                     placeholder="Latitude"
                     autoCapitalize="none"
-                    keyboardType="decimal-pad"
+                    keyboardType="number-pad"
                     onChangeText={(text) => handleCoordinatesChange('latitude', text)}
                 />
                 <TextInput
@@ -164,7 +213,7 @@ const Note: React.FC<Props> = ({ navigation, route }) => {
                     value={note.coordinates?.longitude?.toString() || ''}
                     placeholder="Longitude"
                     autoCapitalize="none"
-                    keyboardType="decimal-pad"
+                    keyboardType="number-pad"
                     onChangeText={(text) => handleCoordinatesChange('longitude', text)}
                 />
                 <View style={styles.imageContainer}>
@@ -175,12 +224,21 @@ const Note: React.FC<Props> = ({ navigation, route }) => {
                     )}
                 </View>
                 <TouchableOpacity style={styles.button} onPress={handleImagePick}>
-                    <Text>Select Image from Gallery</Text>
+                    <Text style={styles.buttonText}>Select Image from Gallery</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.button} onPress={handleCameraPick}>
-                    <Text>Take Photo</Text>
+                    <Text style={styles.buttonText}>Take Photo</Text>
                 </TouchableOpacity>
-                <Button title={`${note.id ? 'Update' : 'Add'} Note`} onPress={saveNote} />
+                <View style={note.id ? styles.buttonRow : styles.fullWidthButton}>
+                    <TouchableOpacity style={[styles.button, note.id ? styles.nestedButton : null]} onPress={saveNote}>
+                        <Text style={styles.buttonText}>Save Note</Text>
+                    </TouchableOpacity>
+                    {note.id ? (
+                        <TouchableOpacity style={[styles.button, styles.deleteButton, styles.nestedButton]} onPress={removeNote}>
+                            <Text style={styles.buttonText}>Delete Note</Text>
+                        </TouchableOpacity>
+                    ) : null}
+                </View>
             </KeyboardAvoidingView>
         </View>
     );
@@ -191,7 +249,7 @@ export default Note;
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        alignItems: 'center',
+        padding: 20,
         justifyContent: 'center',
     },
     input: {
@@ -200,11 +258,31 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         padding: 10,
     },
+    buttonRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    fullWidthButton: {
+        width: '100%'
+    },
     button: {
         alignItems: 'center',
-        backgroundColor: '#DDDDDD',
+        backgroundColor: '#2196F3',
         padding: 10,
         marginVertical: 10,
+    },
+    nestedButton: {
+        flex: 1,
+        marginHorizontal: 10,
+    },
+    deleteButton: {
+        alignItems: 'center',
+        backgroundColor: 'red',
+        padding: 10,
+        marginVertical: 10,
+    },
+    buttonText: {
+        color: '#fff',
     },
     imageContainer: {
         alignItems: 'center',

@@ -6,11 +6,13 @@ const NoteList = ({ notes, navigation }: { notes: NoteInterface[], navigation: a
     const [noteList, setNoteList] = useState<NoteInterface[]>(notes);
 
     useEffect(() => {
+        notes.forEach(note => {
+        console.log(note.date);
+        });
         setNoteList(notes);
     }, [notes]);
 
     const editNote = (note: NoteInterface) => {
-        console.log('Edit note', note);
         navigation.navigate('Note', { noteProp: note });
     }
 
@@ -22,9 +24,12 @@ const NoteList = ({ notes, navigation }: { notes: NoteInterface[], navigation: a
                 <FlatList
                     data={noteList}
                     renderItem={({ item }) => (
-                        <TouchableOpacity style={styles.noteContainer} onPress={() => editNote(item)}>
-                            <Text style={styles.noteTitle}>{item.title}</Text>
-                            <Text>{item.content}</Text>
+                        <TouchableOpacity style={[styles.noteContainer, styles.contentRow]} onPress={() => editNote(item)}>
+                            <View>
+                                <Text style={styles.noteTitle}>{item.title}</Text>
+                                <Text>{item.content}</Text>
+                            </View>
+                            <Text>{item.date ? new Date(item.date.seconds * 1000).toDateString() : null }</Text>
                         </TouchableOpacity>
                     )}
                     keyExtractor={(item) => item.id.toString()}
@@ -51,5 +56,10 @@ const styles = StyleSheet.create({
     },
     noteTitle: {
         fontWeight: 'bold',
+    },
+    contentRow: {
+        width: '100%',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
     },
 });

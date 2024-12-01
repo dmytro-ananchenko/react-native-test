@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
+import MapView, { Callout, Marker } from 'react-native-maps';
 import { NoteInterface } from '../interfaces/NoteInterface';
 
 const NoteMap = ({ notes, navigation }: { notes: NoteInterface[], navigation: any })  => {
@@ -15,23 +15,26 @@ const NoteMap = ({ notes, navigation }: { notes: NoteInterface[], navigation: an
             <MapView
                 style={styles.map}
                 initialRegion={{
-                    latitude: 1,
-                    longitude: 1,
+                    latitude: 31.768,
+                    longitude: 35.2137,
                     latitudeDelta: 0.0922,
                     longitudeDelta: 0.0421,
                 }}
             >
                 {noteList.map(note => {
-                    const { latitude, longitude } = note.coordinates;
-                    if (latitude && longitude) {
-                        <Marker
-                            key={note.id}
-                            coordinate={{ latitude, longitude }}
-                            title={note.title}
-                            description={note.content}
-                        />
-                    }
-                    return null;
+                    const { latitude: lat, longitude: long } = note.coordinates;
+
+                    return <Marker
+                        key={note.id}
+                        coordinate={{
+                            latitude: parseFloat(lat.toString()),
+                            longitude: parseFloat(long.toString())
+                        }}
+                        title={note.title}
+                        description={note.content}
+                    >
+                        <Callout onPress={() => navigation.navigate('Note', { noteProp: note })} />
+                    </Marker>
                 })}
             </MapView>
         </View>

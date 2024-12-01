@@ -14,11 +14,14 @@ const Tab = createBottomTabNavigator();
 
 const HomeTabs = ({ notes, navigation }: { notes: NoteInterface[], navigation: NavigationProp<any, any> }) => {
     return (
-        <Tab.Navigator screenOptions={{ headerShown: false }}>
-            <Tab.Screen name="Main">
+        <Tab.Navigator screenOptions={{
+            headerShown: false,
+            tabBarLabelStyle: { paddingBottom: 0, paddingTop: 0, margin: 0 }
+        }}>
+            <Tab.Screen name="Main" options={{tabBarIcon: () => null}}>
                 {props => <NoteList {...props} notes={notes} navigation={navigation} />}
             </Tab.Screen>
-            <Tab.Screen name="Map">
+            <Tab.Screen name="Map" options={{tabBarIcon: () => null}}>
                 {props => <NoteMap {...props} notes={notes} navigation={navigation} />}
             </Tab.Screen>
         </Tab.Navigator>
